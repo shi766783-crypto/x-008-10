@@ -26,6 +26,8 @@
       </div>
     </div>
 
+    <HealthScoreCard :health="health" />
+
     <div class="charts-grid">
       <div class="card chart-card">
         <h3 class="card-title">各类别支出占比</h3>
@@ -62,21 +64,29 @@
 <script setup>
 import { computed } from 'vue'
 import { useStore, controllersApi } from '../data/store.js'
-import { money, monthListFrom, monthLabel } from '../core/utils.js'
+import { money, monthListFrom, monthLabel, monthStrOf, todayStr } from '../core/utils.js'
 import PieChart from '../components/PieChart.vue'
 import BarChart from '../components/BarChart.vue'
+import HealthScoreCard from '../components/HealthScoreCard.vue'
 
 const store = useStore()
 const { report } = controllersApi
 const palette = ['#4f8df9', '#f9a54f', '#57c785', '#f45b69', '#936df0', '#f0c957', '#4fc3f7', '#ec6aa7', '#8bc34a']
 
-const currentMonth = computed(() => new Date().toISOString().slice(0, 7))
+const currentMonth = computed(() => monthStrOf(todayStr()))
 
 const stats = computed(() => report.incomeAndExpense(currentMonth.value))
 const income = computed(() => stats.value.income)
 const expense = computed(() => stats.value.expense)
 const balance = computed(() => stats.value.balance)
 const savingsRate = computed(() => report.savingsRate(income.value, expense.value))
+
+const health = computed(() => {
+  // 显式依赖 store：记账、删账、修改预算后评分实时重算
+  void store.transactions
+  void store.budgets
+  return controllersApi.health.financialHealth(currentMonth.value)
+})
 
 const pieData = computed(() => {
   const rows = report.expenseByCategory(currentMonth.value)
