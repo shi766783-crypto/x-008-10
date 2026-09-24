@@ -26,6 +26,71 @@
       </div>
     </div>
 
+    <div class="card health-card">
+      <div class="health-head">
+        <h3 class="card-title">财务健康度评估</h3>
+        <span class="health-sub">{{ monthLabel(health.month) }} · 综合储蓄率、预算超支与连续记账</span>
+      </div>
+
+      <div v-if="health.available" class="health-body">
+        <div class="health-score">
+          <svg width="132" height="132" viewBox="0 0 132 132" class="health-ring">
+            <circle cx="66" cy="66" :r="RING_RADIUS" fill="none" stroke="var(--bg-elevated)" :stroke-width="RING_STROKE" />
+            <circle
+              class="health-ring-progress"
+              cx="66"
+              cy="66"
+              :r="RING_RADIUS"
+              fill="none"
+              :stroke="health.grade.color"
+              :stroke-width="RING_STROKE"
+              stroke-linecap="round"
+              :stroke-dasharray="ringCirc"
+              :stroke-dashoffset="ringCirc * (1 - health.score / 100)"
+              transform="rotate(-90 66 66)"
+            />
+            <text x="66" y="63" text-anchor="middle" font-size="32" font-weight="800" :fill="health.grade.color">{{ health.score }}</text>
+            <text x="66" y="84" text-anchor="middle" font-size="12" fill="var(--text-secondary)">综合分</text>
+          </svg>
+          <span class="grade-pill" :style="{ background: health.grade.color + '22', color: health.grade.color }">{{ health.grade.label }}</span>
+        </div>
+
+        <div class="health-factors">
+          <div v-for="f in factorList" :key="f.key" class="factor">
+            <div class="factor-head">
+              <span class="factor-name">
+                <em class="factor-dot" :style="{ background: f.available ? factorColor(f.score) : 'var(--border-color)' }"></em>
+                {{ f.label }}
+              </span>
+              <b :style="{ color: f.available ? factorColor(f.score) : 'var(--text-secondary)' }">
+                {{ f.available ? f.score + ' 分' : '数据不足' }}
+              </b>
+            </div>
+            <div class="bar-track">
+              <div
+                class="bar"
+                :style="{ width: (f.available ? f.score : 0) + '%', background: f.available ? factorColor(f.score) : 'var(--border-color)' }"
+              ></div>
+            </div>
+            <div class="factor-hint" :class="{ muted: !f.available }">{{ f.hint }}</div>
+          </div>
+          <p class="health-tip">💡 {{ health.grade.tip }}</p>
+        </div>
+      </div>
+
+      <div v-else class="health-empty">
+        <div class="health-empty-icon">📊</div>
+        <p class="health-empty-msg">{{ health.message }}</p>
+        <div class="factor-mini-list">
+          <div v-for="f in factorList" :key="f.key" class="factor-mini">
+            <span class="factor-mini-state">{{ f.available ? '✓' : '○' }}</span>
+            <span class="factor-mini-name">{{ f.label }}</span>
+            <span class="factor-mini-hint">{{ f.hint }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="charts-grid">
       <div class="card chart-card">
         <h3 class="card-title">各类别支出占比</h3>
@@ -91,6 +156,24 @@ const trendData = computed(() => {
     { label: '', value: m.expense }
   ])
 })
+
+// 依赖 store.transactions / store.budgets，记账或改预算后实时重新评估
+const health = computed(() => controllersApi.health.financialHealth({
+  transactions: store.transactions,
+  budgets: store.budgets
+}))
+const factorList = computed(() => [
+  { key: 'saving', ...health.value.factors.saving },
+  { key: 'budget', ...health.value.factors.budget },
+  { key: 'streak', ...health.value.factors.streak }
+])
+
+const RING_SIZE = 132
+const RING_STROKE = 12
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2
+const ringCirc = 2 * Math.PI * RING_RADIUS
+
+const factorColor = (score) => (score >= 85 ? '#57c785' : score >= 70 ? '#4f8df9' : score >= 60 ? '#e0a41f' : '#f45b69')
 </script>
 
 <style scoped>
@@ -120,6 +203,123 @@ const trendData = computed(() => {
 .kpi-value.expense { color: var(--expense); }
 .kpi-value.neg { color: var(--expense); }
 .kpi-value.accent { color: var(--accent); }
+.health-card {
+  margin-bottom: 16px;
+}
+.health-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.health-head .card-title { margin: 0; }
+.health-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.health-body {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.health-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.health-ring-progress {
+  transition: stroke-dashoffset 0.4s ease, stroke 0.3s ease;
+}
+.grade-pill {
+  font-size: 13px;
+  font-weight: 800;
+  padding: 3px 14px;
+  border-radius: 999px;
+}
+.health-factors {
+  flex: 1;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.factor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+.factor-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+}
+.factor-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.factor-head b { font-size: 13px; }
+.bar-track {
+  height: 8px;
+  background: var(--bg-elevated);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.35s ease, background 0.3s ease;
+}
+.factor-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.health-tip {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.health-empty {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.health-empty-icon {
+  font-size: 34px;
+  line-height: 1;
+  padding-top: 4px;
+}
+.health-empty-msg {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  max-width: 640px;
+}
+.factor-mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.factor-mini {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+.factor-mini-state { color: var(--text-secondary); width: 14px; flex-shrink: 0; }
+.factor-mini-name { font-weight: 700; flex-shrink: 0; }
+.factor-mini-hint { color: var(--text-secondary); }
 .charts-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
